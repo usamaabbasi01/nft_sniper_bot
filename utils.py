@@ -75,9 +75,14 @@ import sys
 import io
 from datetime import datetime
 
-# Set UTF-8 encoding for stdout/stderr
-sys.stdout = io.TextIOWrapper(sys.stdout.detach(), encoding='utf-8')
-sys.stderr = io.TextIOWrapper(sys.stderr.detach(), encoding='utf-8')
+# Set UTF-8 encoding for stdout/stderr (safe for PyInstaller)
+try:
+    if sys.stdout and hasattr(sys.stdout, 'detach'):
+        sys.stdout = io.TextIOWrapper(sys.stdout.detach(), encoding='utf-8')
+    if sys.stderr and hasattr(sys.stderr, 'detach'):
+        sys.stderr = io.TextIOWrapper(sys.stderr.detach(), encoding='utf-8')
+except Exception:
+    pass  # Ignore errors in frozen/GUI mode
 
 def log_message(message):
     """Print timestamped log message"""

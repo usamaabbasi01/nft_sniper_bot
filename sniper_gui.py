@@ -1,4 +1,5 @@
 import threading
+import asyncio
 import subprocess
 import sys
 import io
@@ -9,12 +10,16 @@ from PyQt5.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QFrame, QSizePolicy, QStackedWidget, QMessageBox, QSpacerItem
 )
 from PyQt5.QtGui import QFont, QTextCursor, QIcon, QPixmap
-from PyQt5.QtCore import Qt, QTimer, QProcess
+from PyQt5.QtCore import Qt, QTimer, QProcess, QObject, pyqtSignal
 from dotenv import dotenv_values
+from bot_core import run_bot
 
 APP_VERSION = "1.0.0"
 GITHUB_VERSION_URL = "https://raw.githubusercontent.com/usamaabbasi01/nft_sniper_bot/main/version.txt"
 GITHUB_UPDATE_BASE_URL = "https://raw.githubusercontent.com/usamaabbasi01/nft_sniper_bot/main/"
+
+class LogSignaler(QObject):
+    log_signal = pyqtSignal(str)
 
 class NFTBotUI(QWidget):
     def __init__(self):
@@ -25,6 +30,8 @@ class NFTBotUI(QWidget):
         self.setMinimumSize(800, 500)
         self.setStyleSheet(self.get_stylesheet())
         self.bot_process = None
+        self.log_signaler = LogSignaler()
+        self.log_signaler.log_signal.connect(self.append_to_output)
         self.init_ui()
         self.showMaximized()
         self.check_for_updates()
@@ -54,6 +61,7 @@ class NFTBotUI(QWidget):
         QLabel#versionLabel {
             color: #8b949e;
             font-size: 13px;
+            background-color: #232a36;
         }
         QPushButton#updateBtn {
             background: #0078D7;
@@ -66,7 +74,7 @@ class NFTBotUI(QWidget):
             background: #005fa3;
         }
         QPushButton.navBtn {
-            background: transparent;
+            background: #232a36;
             color: #e0e6ed;
             font-size: 16px;
             font-weight: 600;
@@ -163,7 +171,7 @@ class NFTBotUI(QWidget):
         else:
             logo_label.setText("<b>NFT Sniper</b>")
             logo_label.setAlignment(Qt.AlignmentFlag.AlignVCenter)
-            logo_label.setStyleSheet("font-size: 22px; color: #58a6ff; margin: 0 10px 0 0;")
+            logo_label.setStyleSheet("font-size: 22px; color: #58a6ff; margin: 0 10px 0 0; background-color: #232a36;")
         topbar_layout.addWidget(logo_label)
         # Nav buttons
         self.nav_btns = []
@@ -275,9 +283,9 @@ class NFTBotUI(QWidget):
             - Telegram alerts<br>
             - Auto-update support<br>
             - Modern, responsive UI<br><br>
-            <b>Version:</b> {ver}<br>
-            <b>GitHub:</b> <a href='https://github.com/usamaabbasi01/nft_sniper_bot'>usamaabbasi01/nft_sniper_bot</a><br>
-            <b>Support:</b> Contact the developer for help or suggestions.<br>
+            <b>Version:</b> {ver}<br>"""
+            # <b>GitHub:</b> <a href='https://github.com/usamaabbasi01/nft_sniper_bot'>usamaabbasi01/nft_sniper_bot</a><br>
+            """<b>Support:</b> Contact the developer for help or suggestions.<br>
             """.format(ver=APP_VERSION)
         )
         about_text.setOpenExternalLinks(True)
@@ -355,43 +363,39 @@ class NFTBotUI(QWidget):
                 f"Failed to save configuration:\n\n{str(e)}"
             )
 
+    def append_to_output(self, message):
+        self.output_box.append(message)
+        cursor = self.output_box.textCursor()
+        cursor.movePosition(QTextCursor.End)
+        self.output_box.setTextCursor(cursor)
 
     def start_bot_process(self):
-        if self.bot_process:
+        if hasattr(self, 'bot_thread') and self.bot_thread and self.bot_thread.is_alive():
             QMessageBox.warning(
-                self, 
-                "Bot Already Running", 
+                self,
+                "Bot Already Running",
                 "⚠️ The bot is already running.\n\nPlease stop the current bot before starting a new one."
             )
             return
-
-        # Check if bot.py exists
-        if not os.path.exists("bot.py"):
-            QMessageBox.critical(
-                self, 
-                "Missing Bot File", 
-                "❌ bot.py file not found in the current directory."
-            )
-            return
-
-        self.bot_process = QProcess()
-        self.bot_process.setProgram(sys.executable)
-        self.bot_process.setArguments(["-u", "bot.py"])  # -u = unbuffered
-        self.bot_process.readyReadStandardOutput.connect(self.read_output)
-        self.bot_process.readyReadStandardError.connect(self.read_output)
-        self.bot_process.finished.connect(self.bot_finished)
-        
-        try:
-            self.bot_process.start()
-            self.output_box.append("🚀 Bot started successfully!\n")
-            self.output_box.append("📡 Monitoring for new NFT listings...\n")
-            self.output_box.append("-" * 50 + "\n")
-        except Exception as e:
-            QMessageBox.critical(
-                self, 
-                "Startup Error", 
-                f"❌ Failed to start bot:\n\n{str(e)}"
-            )
+        self.output_box.append("🚀 Bot started successfully!\n")
+        self.output_box.append("📡 Monitoring for new NFT listings...\n")
+        self.output_box.append("-" * 50 + "\n")
+        self.bot_stop_event = threading.Event()
+        def log_message(msg):
+            self.log_signaler.log_signal.emit(msg)
+        def send_alert(msg):
+            from utils import send_telegram_alert
+            send_telegram_alert(msg)
+        def bot_runner():
+            import asyncio
+            from bot_core import run_bot
+            try:
+                asyncio.run(run_bot(log_message, send_alert, self.bot_stop_event))
+            except Exception as e:
+                print(f"[THREAD ERROR] {e}")
+                log_message(f"[THREAD ERROR] {e}")
+        self.bot_thread = threading.Thread(target=bot_runner, daemon=True)
+        self.bot_thread.start()
 
     def read_output(self):
         if self.bot_process:
@@ -409,14 +413,10 @@ class NFTBotUI(QWidget):
             self.output_box.setTextCursor(cursor)
 
     def stop_bot(self):
-        if self.bot_process:
-            self.bot_process.terminate()
-            self.bot_process.kill()
-            self.output_box.append("⏹ Bot stopped by user.\n")
-            self.output_box.append("-" * 50 + "\n")
-            self.bot_process = None
-        else:
-            self.output_box.append("ℹ️ No bot process running.\n")
+        if hasattr(self, 'bot_stop_event'):
+            self.bot_stop_event.set()
+        self.output_box.append("⏹ Bot stopped by user.\n")
+        self.output_box.append("-" * 50 + "\n")
 
     def clear_output(self):
         self.output_box.clear()
