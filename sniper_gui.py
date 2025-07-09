@@ -2,145 +2,247 @@ import threading
 import subprocess
 import sys
 import io
-
-# sys.stdout = io.TextIOWrapper(sys.stdout.detach(), encoding='utf-8')
-# sys.stderr = io.TextIOWrapper(sys.stderr.detach(), encoding='utf-8')
-
-
 import os
-import subprocess
+import requests
 from PyQt5.QtWidgets import (
-    QApplication, QWidget, QLabel, QLineEdit, QPushButton,
-    QVBoxLayout, QHBoxLayout, QMessageBox, QTextEdit, QCheckBox,
-    QFrame, QSpacerItem, QSizePolicy
+    QApplication, QWidget, QLabel, QLineEdit, QPushButton, QTextEdit, QCheckBox,
+    QVBoxLayout, QHBoxLayout, QFrame, QSizePolicy, QStackedWidget, QMessageBox, QSpacerItem
 )
-from PyQt5.QtGui import QFont, QTextCursor
-from PyQt5.QtCore import Qt, QTimer, QProcess, pyqtSignal, QObject
+from PyQt5.QtGui import QFont, QTextCursor, QIcon, QPixmap
+from PyQt5.QtCore import Qt, QTimer, QProcess
 from dotenv import dotenv_values
 
-
-
-
+APP_VERSION = "1.0.0"
+GITHUB_VERSION_URL = "https://raw.githubusercontent.com/usamaabbasi01/nft_sniper_bot/main/version.txt"
+GITHUB_UPDATE_BASE_URL = "https://raw.githubusercontent.com/usamaabbasi01/nft_sniper_bot/main/"
 
 class NFTBotUI(QWidget):
-    
     def __init__(self):
         super().__init__()
         self.setWindowTitle("NFT Sniper Bot")
-        self.showMaximized()  # Start maximized
-        self.setMinimumSize(700, 400)
-        
-        # Modern dark theme styling
-        self.setStyleSheet("""
-            QWidget {
-                font-family: 'Segoe UI', Arial, sans-serif;
-                font-size: 14px;
-                background-color: #1e1e1e;
-                color: #e0e0e0;
-            }
-            QLabel {
-                font-weight: 500;
-                color: #e0e0e0;
-            }
-            QLineEdit {
-                padding: 10px;
-                border: 2px solid #333;
-                border-radius: 8px;
-                background-color: #2d2d2d;
-                color: #e0e0e0;
-                font-size: 13px;
-            }
-            QLineEdit:focus {
-                border: 2px solid #0078D7;
-            }
-            QPushButton {
-                padding: 12px 20px;
-                border-radius: 8px;
-                border: none;
-                font-weight: 600;
-                font-size: 14px;
-                min-width: 120px;
-            }
-            QPushButton#startBtn {
-                background-color: #4CAF50;
-                color: white;
-            }
-            QPushButton#startBtn:hover {
-                background-color: #45a049;
-            }
-            QPushButton#stopBtn {
-                background-color: #f44336;
-                color: white;
-            }
-            QPushButton#stopBtn:hover {
-                background-color: #da190b;
-            }
-            QPushButton#clearBtn {
-                background-color: #ff9800;
-                color: white;
-            }
-            QPushButton#clearBtn:hover {
-                background-color: #e68900;
-            }
-            QCheckBox {
-                padding-left: 5px;
-                color: #e0e0e0;
-                font-size: 12px;
-            }
-            QCheckBox::indicator {
-                width: 16px;
-                height: 16px;
-            }
-            QTextEdit {
-                background-color: #0d1117;
-                color: #58a6ff;
-                border: 2px solid #30363d;
-                border-radius: 8px;
-                font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-                font-size: 12px;
-                padding: 10px;
-            }
-            QFrame#separator {
-                background-color: #333;
-                border: none;
-                height: 1px;
-            }
-        """)
+        self.resize(1100, 700)
+        self.center_on_screen()
+        self.setMinimumSize(800, 500)
+        self.setStyleSheet(self.get_stylesheet())
         self.bot_process = None
         self.init_ui()
+        self.showMaximized()
+        self.check_for_updates()
+
+    def center_on_screen(self):
+        screen = QApplication.primaryScreen().availableGeometry()
+        size = self.geometry()
+        self.move((screen.width() - size.width()) // 2, (screen.height() - size.height()) // 2)
+
+    def get_stylesheet(self):
+        return """
+        QWidget {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            font-size: 15px;
+            background-color: #181c24;
+            color: #e0e6ed;
+        }
+        QFrame#topbar {
+            background-color: #232a36;
+            border-bottom: 1px solid #232a36;
+        }
+        QLabel#appTitle {
+            font-size: 22px;
+            font-weight: bold;
+            color: #58a6ff;
+        }
+        QLabel#versionLabel {
+            color: #8b949e;
+            font-size: 13px;
+        }
+        QPushButton#updateBtn {
+            background: #0078D7;
+            color: white;
+            border-radius: 6px;
+            padding: 7px 18px;
+            font-weight: 600;
+        }
+        QPushButton#updateBtn:hover {
+            background: #005fa3;
+        }
+        QPushButton.navBtn {
+            background: transparent;
+            color: #e0e6ed;
+            font-size: 16px;
+            font-weight: 600;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 8px;
+        }
+        QPushButton.navBtn[selected="true"] {
+            background: #232a36;
+            color: #58a6ff;
+        }
+        QPushButton.navBtn:hover {
+            background: #232a36;
+            color: #58a6ff;
+        }
+        QLineEdit {
+            padding: 10px;
+            border: 2px solid #333;
+            border-radius: 8px;
+            background-color: #232a36;
+            color: #e0e6ed;
+            font-size: 14px;
+        }
+        QLineEdit:focus {
+            border: 2px solid #58a6ff;
+        }
+        QPushButton {
+            padding: 12px 20px;
+            border-radius: 8px;
+            border: none;
+            font-weight: 600;
+            font-size: 15px;
+            min-width: 120px;
+        }
+        QPushButton#startBtn {
+            background-color: #4CAF50;
+            color: white;
+        }
+        QPushButton#startBtn:hover {
+            background-color: #45a049;
+        }
+        QPushButton#stopBtn {
+            background-color: #f44336;
+            color: white;
+        }
+        QPushButton#stopBtn:hover {
+            background-color: #da190b;
+        }
+        QPushButton#clearBtn {
+            background-color: #ff9800;
+            color: white;
+        }
+        QPushButton#clearBtn:hover {
+            background-color: #e68900;
+        }
+        QTextEdit {
+            background-color: #10131a;
+            color: #58a6ff;
+            border: 2px solid #232a36;
+            border-radius: 8px;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+            padding: 10px;
+        }
+        QCheckBox {
+            color: #e0e6ed;
+            font-size: 13px;
+        }
+        QCheckBox::indicator {
+            width: 16px;
+            height: 16px;
+        }
+        """
 
     def init_ui(self):
-        main_layout = QHBoxLayout()
-        main_layout.setSpacing(20)
-        main_layout.setContentsMargins(20, 20, 20, 20)
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
 
-        # --- Left: Configuration Form ---
-        form_layout = QVBoxLayout()
-        form_layout.setSpacing(15)
+        # Top bar with logo, nav, version, update
+        topbar = QFrame()
+        topbar.setObjectName("topbar")
+        topbar_layout = QHBoxLayout(topbar)
+        topbar_layout.setContentsMargins(20, 10, 20, 10)
+        topbar_layout.setSpacing(10)
+        # Logo
+        logo_label = QLabel()
+        logo_path = os.path.join(os.path.dirname(__file__), "logo.png")
+        if os.path.exists(logo_path):
+            pixmap = QPixmap(logo_path)
+            pixmap = pixmap.scaled(48, 48, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            logo_label.setPixmap(pixmap)
+            logo_label.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+        else:
+            logo_label.setText("<b>NFT Sniper</b>")
+            logo_label.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+            logo_label.setStyleSheet("font-size: 22px; color: #58a6ff; margin: 0 10px 0 0;")
+        topbar_layout.addWidget(logo_label)
+        # Nav buttons
+        self.nav_btns = []
+        nav_names = ["Dashboard", "Settings", "About"]
+        for i, name in enumerate(nav_names):
+            btn = QPushButton(name)
+            btn.setProperty("selected", "true" if i == 0 else "false")
+            btn.setObjectName("navBtn" + name)
+            btn.setCursor(Qt.PointingHandCursor)
+            btn.setCheckable(True)
+            btn.setAutoExclusive(True)
+            btn.setStyleSheet("")  # Use global stylesheet
+            btn.clicked.connect(lambda checked, idx=i: self.pages.setCurrentIndex(idx))
+            btn.clicked.connect(lambda checked, idx=i: self.update_nav_selection(idx))
+            self.nav_btns.append(btn)
+            topbar_layout.addWidget(btn)
+        topbar_layout.addStretch()
+        version_label = QLabel(f"v{APP_VERSION}")
+        version_label.setObjectName("versionLabel")
+        update_btn = QPushButton("Check for Updates")
+        update_btn.setObjectName("updateBtn")
+        update_btn.clicked.connect(self.check_for_updates)
+        topbar_layout.addWidget(version_label)
+        topbar_layout.addWidget(update_btn)
+        main_layout.addWidget(topbar)
 
-        # Title
-        title = QLabel("🚀 NFT Sniper Bot")
-        title.setFont(QFont("Segoe UI", 20, QFont.Bold))
-        title.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        title.setStyleSheet("color: #58a6ff; margin-bottom: 5px;")
-        form_layout.addWidget(title)
+        # Stacked widget for pages
+        self.pages = QStackedWidget()
+        self.dashboard_page = self.create_dashboard_page()
+        self.settings_page = self.create_settings_page()
+        self.about_page = self.create_about_page()
+        self.pages.addWidget(self.dashboard_page)
+        self.pages.addWidget(self.settings_page)
+        self.pages.addWidget(self.about_page)
+        main_layout.addWidget(self.pages)
 
-        # Subtitle
-        subtitle = QLabel("Configure your bot settings and monitor NFT listings")
-        subtitle.setFont(QFont("Segoe UI", 11))
-        subtitle.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        subtitle.setStyleSheet("color: #8b949e; margin-bottom: 10px;")
-        form_layout.addWidget(subtitle)
+    def update_nav_selection(self, selected_idx):
+        for i, btn in enumerate(self.nav_btns):
+            btn.setProperty("selected", "true" if i == selected_idx else "false")
+            btn.setStyleSheet("")  # Re-apply global stylesheet
 
-        # Configuration section
-        config_frame = QFrame()
-        config_frame.setStyleSheet("QFrame { background-color: #21262d; border-radius: 10px; padding: 15px; }")
-        config_vbox = QVBoxLayout(config_frame)
+    def create_dashboard_page(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(30, 30, 30, 30)
+        layout.setSpacing(20)
+        # Output area
+        self.output_box = QTextEdit()
+        self.output_box.setReadOnly(True)
+        self.output_box.setMinimumHeight(250)
+        self.output_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        layout.addWidget(self.output_box)
+        # Controls
+        controls = QHBoxLayout()
+        self.start_btn = QPushButton("▶ Start Bot")
+        self.stop_btn = QPushButton("⏹ Stop Bot")
+        self.clear_btn = QPushButton("🗑 Clear Output")
+        self.start_btn.setObjectName("startBtn")
+        self.stop_btn.setObjectName("stopBtn")
+        self.clear_btn.setObjectName("clearBtn")
+        self.start_btn.clicked.connect(self.save_and_start)
+        self.stop_btn.clicked.connect(self.stop_bot)
+        self.clear_btn.clicked.connect(self.clear_output)
+        controls.addWidget(self.start_btn)
+        controls.addWidget(self.stop_btn)
+        controls.addWidget(self.clear_btn)
+        controls.addStretch()
+        layout.addLayout(controls)
+        return page
+
+    def create_settings_page(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(30, 30, 30, 30)
+        layout.setSpacing(15)
         config_title = QLabel("📋 Configuration")
-        config_title.setFont(QFont("Segoe UI", 14, QFont.Bold))
+        config_title.setFont(QFont("Segoe UI", 16, QFont.Bold))
         config_title.setStyleSheet("color: #58a6ff; margin-bottom: 10px;")
-        config_vbox.addWidget(config_title)
-
+        layout.addWidget(config_title)
         self.fields = {}
         field_names = [
             ("COLLECTION_SLUG", "Collection Slug"),
@@ -152,103 +254,67 @@ class NFTBotUI(QWidget):
         ]
         existing_env = dotenv_values(".env") if os.path.exists(".env") else {}
         for key, label_text in field_names:
-            config_vbox.addLayout(self.create_input_row(key, label_text, existing_env.get(key, "")))
-        config_vbox.addStretch()
-        form_layout.addWidget(config_frame)
+            layout.addLayout(self.create_input_row(key, label_text, existing_env.get(key, "")))
+        layout.addStretch()
+        return page
 
-        # Control buttons
-        btn_layout = QHBoxLayout()
-        btn_layout.setSpacing(10)
-        self.start_btn = QPushButton("▶ Start Bot")
-        self.stop_btn = QPushButton("⏹ Stop Bot")
-        self.clear_btn = QPushButton("🗑 Clear Output")
-        self.start_btn.setObjectName("startBtn")
-        self.stop_btn.setObjectName("stopBtn")
-        self.clear_btn.setObjectName("clearBtn")
-        self.start_btn.clicked.connect(self.save_and_start)
-        self.stop_btn.clicked.connect(self.stop_bot)
-        self.clear_btn.clicked.connect(self.clear_output)
-        btn_layout.addWidget(self.start_btn)
-        btn_layout.addWidget(self.stop_btn)
-        btn_layout.addWidget(self.clear_btn)
-        btn_layout.addStretch()
-        form_layout.addLayout(btn_layout)
-
-        # --- Right: Output Area ---
-        output_layout = QVBoxLayout()
-        output_layout.setSpacing(10)
-        output_title = QLabel("📊 Bot Output")
-        output_title.setFont(QFont("Segoe UI", 16, QFont.Bold))
-        output_title.setStyleSheet("color: #58a6ff; margin-bottom: 10px;")
-        output_layout.addWidget(output_title, alignment=Qt.AlignmentFlag.AlignTop)
-        output_frame = QFrame()
-        output_frame.setStyleSheet("QFrame { background-color: #21262d; border-radius: 10px; padding: 15px; }")
-        output_vbox = QVBoxLayout(output_frame)
-        self.output_box = QTextEdit()
-        self.output_box.setReadOnly(True)
-        self.output_box.setMinimumWidth(350)
-        self.output_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.output_box.setStyleSheet("""
-            QTextEdit {
-                background-color: #0d1117;
-                color: #58a6ff;
-                border: 2px solid #30363d;
-                border-radius: 8px;
-                font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-                font-size: 12px;
-                padding: 10px;
-            }
-        """)
-        output_vbox.addWidget(self.output_box)
-        output_frame.setLayout(output_vbox)
-        output_layout.addWidget(output_frame)
-
-        # Add both panels to main layout, align tops
-        main_layout.addLayout(form_layout, 1)
-        main_layout.addLayout(output_layout, 2)
-        main_layout.setAlignment(form_layout, Qt.AlignmentFlag.AlignTop)
-        main_layout.setAlignment(output_layout, Qt.AlignmentFlag.AlignTop)
-        self.setLayout(main_layout)
-
+    def create_about_page(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(30, 30, 30, 30)
+        layout.setSpacing(15)
+        about_title = QLabel("ℹ️ About NFT Sniper Bot")
+        about_title.setFont(QFont("Segoe UI", 16, QFont.Bold))
+        about_title.setStyleSheet("color: #58a6ff; margin-bottom: 10px;")
+        layout.addWidget(about_title)
+        about_text = QLabel(
+            """
+            <b>NFT Sniper Bot</b> is a modern, user-friendly tool for monitoring NFT listings and sniping rare items.<br><br>
+            <b>Features:</b><br>
+            - Real-time monitoring<br>
+            - Telegram alerts<br>
+            - Auto-update support<br>
+            - Modern, responsive UI<br><br>
+            <b>Version:</b> {ver}<br>
+            <b>GitHub:</b> <a href='https://github.com/usamaabbasi01/nft_sniper_bot'>usamaabbasi01/nft_sniper_bot</a><br>
+            <b>Support:</b> Contact the developer for help or suggestions.<br>
+            """.format(ver=APP_VERSION)
+        )
+        about_text.setOpenExternalLinks(True)
+        about_text.setWordWrap(True)
+        layout.addWidget(about_text)
+        layout.addStretch()
+        return page
 
     def create_input_row(self, key, label_text, default_value):
         row = QHBoxLayout()
         row.setSpacing(15)
-        
         label = QLabel(label_text)
         label.setMinimumWidth(180)
-        label.setFont(QFont("Segoe UI", 11))
-        label.setStyleSheet("color: #e0e0e0;")
-
+        label.setFont(QFont("Segoe UI", 12))
+        label.setStyleSheet("color: #e0e6ed;")
         field = QLineEdit()
         field.setText(default_value)
         field.setPlaceholderText(f"Enter {label_text}...")
         field.setMinimumWidth(300)
-
         # Mask sensitive fields
         if key in ["TELEGRAM_BOT_TOKEN", "TELEGRAM_USER_ID", "OPENSEA_API_KEY"]:
             field.setEchoMode(QLineEdit.Password)
-
-            # Show/hide checkbox
             toggle = QCheckBox("Show characters")
             toggle.setStyleSheet("color: #8b949e; font-size: 11px;")
             def toggle_visibility():
                 field.setEchoMode(QLineEdit.Normal if toggle.isChecked() else QLineEdit.Password)
             toggle.stateChanged.connect(toggle_visibility)
-
             row.addWidget(label)
             row.addWidget(field)
             row.addWidget(toggle)
             row.addStretch()
-
         else:
             row.addWidget(label)
             row.addWidget(field)
             row.addStretch()
-
         self.fields[key] = field
         return row
-
 
     def save_and_start(self):
         try:
@@ -360,6 +426,62 @@ class NFTBotUI(QWidget):
         self.output_box.append("🏁 Bot process finished.\n")
         self.output_box.append("-" * 50 + "\n")
         self.bot_process = None
+
+    def check_for_updates(self):
+        try:
+            resp = requests.get(GITHUB_VERSION_URL, timeout=5)
+            if resp.status_code == 200:
+                latest_version = resp.text.strip()
+                if latest_version != APP_VERSION:
+                    reply = QMessageBox.question(
+                        self,
+                        "Update Available",
+                        f"A new version ({latest_version}) is available.\nYou are running {APP_VERSION}.\n\nDo you want to update now?",
+                        QMessageBox.Yes | QMessageBox.No,
+                        QMessageBox.Yes
+                    )
+                    if reply == QMessageBox.Yes:
+                        self.perform_update(latest_version)
+                    else:
+                        self.output_box.append("Update cancelled by user.\n")
+                else:
+                    QMessageBox.information(
+                        self,
+                        "No Updates",
+                        f"You are already running the latest version ({APP_VERSION})."
+                    )
+            else:
+                QMessageBox.warning(
+                    self,
+                    "Update Check Failed",
+                    f"Failed to check for updates. Server responded with status code: {resp.status_code}"
+                )
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Update Check Error",
+                f"Update check failed: {e}"
+            )
+
+    def perform_update(self, latest_version):
+        # For demonstration, let's say we only update bot.py and utils.py
+        files_to_update = ["bot.py", "utils.py"]
+        updated = []
+        for fname in files_to_update:
+            url = GITHUB_UPDATE_BASE_URL + fname
+            try:
+                resp = requests.get(url, timeout=10)
+                if resp.status_code == 200:
+                    with open(fname, "w", encoding="utf-8") as f:
+                        f.write(resp.text)
+                    updated.append(fname)
+            except Exception as e:
+                self.output_box.append(f"Failed to update {fname}: {e}\n")
+        if updated:
+            self.output_box.append(f"Updated files: {', '.join(updated)}. Please restart the app to use the new version.\n")
+        else:
+            self.output_box.append("No files were updated.\n")
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
