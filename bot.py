@@ -24,7 +24,75 @@ CONTRACT_ADDRESS = os.getenv("CONTRACT_ADDRESS")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_USER_ID = os.getenv("TELEGRAM_USER_ID")
 OPENSEA_API_KEY = os.getenv("OPENSEA_API_KEY")
-MIN_SCORE_THRESHOLD = 100
+
+# Collection-specific score thresholds
+COLLECTION_THRESHOLDS = {
+    # PFP Collections (High rarity focus)
+    "milady": 150,      # Milady is very rarity-focused
+    "azuki": 120,       # Azuki has high floor, need higher rarity
+    "doodles": 80,      # Doodles are more floor-focused
+    "bayc": 200,        # BAYC has very high rarity premiums
+    "cryptopunks": 300, # CryptoPunks have extreme rarity values
+    "cool-cats": 100,   # Cool Cats - moderate rarity
+    "moonbirds": 180,   # Moonbirds - high rarity focus
+    "veefriends": 90,   # VeeFriends - moderate rarity
+    
+    # Generative Art (Medium-high rarity)
+    "art-blocks": 200,  # Art Blocks - artistic rarity
+    "chromie-squig": 150, # Chromie Squig
+    "fidenza": 250,     # Fidenza - very rare
+    
+    # Gaming/Metaverse (Lower rarity, utility-focused)
+    "axie": 50,         # Axie Infinity - utility > rarity
+    "sandbox": 60,      # The Sandbox
+    "decentraland": 70, # Decentraland
+    
+    # Photography/Art (Very high rarity)
+    "beeple": 500,      # Beeple works - extremely rare
+    "pak": 400,         # Pak works
+    "xcopy": 450,       # XCOPY works
+    
+    # Music/Audio (Medium rarity)
+    "audius": 100,      # Audius
+    "catalog": 120,     # Catalog
+    
+    # Domain/Name (Low rarity, utility-focused)
+    "ens": 30,          # ENS domains
+    "unstoppable": 40,  # Unstoppable Domains
+    
+    # Meme/Community (Variable)
+    "pepe": 80,         # Pepe - community-driven
+    "wojak": 70,        # Wojak
+    
+    # Default for unknown collections
+    "default": 100
+}
+
+# Get threshold for current collection
+def get_score_threshold(collection_slug):
+    """Get the appropriate score threshold for a collection"""
+    # Try exact match first
+    if collection_slug in COLLECTION_THRESHOLDS:
+        return COLLECTION_THRESHOLDS[collection_slug]
+    
+    # Try partial matches (e.g., "milady-maker" matches "milady")
+    for key in COLLECTION_THRESHOLDS:
+        if key in collection_slug.lower():
+            return COLLECTION_THRESHOLDS[key]
+    
+    # Return default if no match found
+    return COLLECTION_THRESHOLDS["default"]
+
+# Get threshold from environment or use collection-specific default
+env_threshold = os.getenv("MIN_SCORE_THRESHOLD")
+if env_threshold:
+    try:
+        MIN_SCORE_THRESHOLD = int(env_threshold)
+    except ValueError:
+        MIN_SCORE_THRESHOLD = get_score_threshold(COLLECTION_SLUG)
+else:
+    MIN_SCORE_THRESHOLD = get_score_threshold(COLLECTION_SLUG)
+
 TOTAL_SUPPLY = 4269
 
 def log_message(message):
@@ -50,6 +118,7 @@ def validate_config():
         return False
     
     log_message("✅ All configuration validated successfully")
+    log_message(f"🎯 Using score threshold: {MIN_SCORE_THRESHOLD}")
     return True
 
 async def monitor_listings():

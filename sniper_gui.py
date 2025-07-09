@@ -121,14 +121,14 @@ class NFTBotUI(QWidget):
         # Title
         title = QLabel("🚀 NFT Sniper Bot")
         title.setFont(QFont("Segoe UI", 20, QFont.Bold))
-        title.setAlignment(Qt.AlignLeft)
+        title.setAlignment(Qt.AlignmentFlag.AlignLeft)
         title.setStyleSheet("color: #58a6ff; margin-bottom: 5px;")
         form_layout.addWidget(title)
 
         # Subtitle
         subtitle = QLabel("Configure your bot settings and monitor NFT listings")
         subtitle.setFont(QFont("Segoe UI", 11))
-        subtitle.setAlignment(Qt.AlignLeft)
+        subtitle.setAlignment(Qt.AlignmentFlag.AlignLeft)
         subtitle.setStyleSheet("color: #8b949e; margin-bottom: 10px;")
         form_layout.addWidget(subtitle)
 
@@ -148,6 +148,7 @@ class NFTBotUI(QWidget):
             ("TELEGRAM_BOT_TOKEN", "Telegram Bot Token"),
             ("TELEGRAM_USER_ID", "Telegram User ID"),
             ("OPENSEA_API_KEY", "OpenSea API Key"),
+            ("MIN_SCORE_THRESHOLD", "Min Score Threshold"),
         ]
         existing_env = dotenv_values(".env") if os.path.exists(".env") else {}
         for key, label_text in field_names:
@@ -179,7 +180,7 @@ class NFTBotUI(QWidget):
         output_title = QLabel("📊 Bot Output")
         output_title.setFont(QFont("Segoe UI", 16, QFont.Bold))
         output_title.setStyleSheet("color: #58a6ff; margin-bottom: 10px;")
-        output_layout.addWidget(output_title, alignment=Qt.AlignTop)
+        output_layout.addWidget(output_title, alignment=Qt.AlignmentFlag.AlignTop)
         output_frame = QFrame()
         output_frame.setStyleSheet("QFrame { background-color: #21262d; border-radius: 10px; padding: 15px; }")
         output_vbox = QVBoxLayout(output_frame)
@@ -205,8 +206,8 @@ class NFTBotUI(QWidget):
         # Add both panels to main layout, align tops
         main_layout.addLayout(form_layout, 1)
         main_layout.addLayout(output_layout, 2)
-        main_layout.setAlignment(form_layout, Qt.AlignTop)
-        main_layout.setAlignment(output_layout, Qt.AlignTop)
+        main_layout.setAlignment(form_layout, Qt.AlignmentFlag.AlignTop)
+        main_layout.setAlignment(output_layout, Qt.AlignmentFlag.AlignTop)
         self.setLayout(main_layout)
 
 
